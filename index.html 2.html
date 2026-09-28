@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>لعبة إطار RCTF</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Tahoma,sans-serif;background:linear-gradient(135deg,#eaf7ff,#fff1fa);color:#10235b}
+header{padding:18px;text-align:center;background:linear-gradient(90deg,#ff9bc7,#ffd96a,#9ee7ff);border-bottom:5px solid white}
+h1{margin:0;font-size:clamp(30px,5vw,58px)} .sub{font-size:clamp(16px,2.2vw,25px);font-weight:700;margin-top:8px}
+.toolbar{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;padding:12px}
+.pill,button{border:0;border-radius:16px;padding:11px 16px;font-weight:800;font-size:17px;background:white;box-shadow:0 3px 10px #0002}
+button{cursor:pointer;background:#17266f;color:white}
+#cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:11px;padding:14px;max-width:1450px;margin:auto}
+.card{min-height:110px;border-radius:18px;padding:10px;text-align:center;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;font-weight:800;font-size:17px;box-shadow:0 4px 10px #0002;border:3px dashed #ffffff;cursor:grab;touch-action:none;user-select:none}
+.card .ico{font-size:35px}.card.selected{outline:5px solid #17266f;transform:scale(1.03)}
+.c1{background:#ffd3e4}.c2{background:#cfefff}.c3{background:#fff0ae}.c4{background:#d8f7d8}.c5{background:#ead8ff}
+.zones{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:14px;max-width:1450px;margin:auto}
+.zone{min-height:245px;border-radius:22px;padding:10px;background:white;border:5px solid;box-shadow:0 5px 14px #0002}
+.zone h2{margin:0 0 8px;text-align:center;font-size:26px}.zone small{display:block;text-align:center;margin-bottom:8px}
+.zone[data-cat=R]{border-color:#ef4d8d}.zone[data-cat=C]{border-color:#329be6}.zone[data-cat=T]{border-color:#f5a623}.zone[data-cat=F]{border-color:#8e55d8}
+.zone .drop{min-height:165px;border:3px dashed #bbb;border-radius:15px;padding:7px;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start}
+.mini{padding:7px;border-radius:10px;background:#f6f6f6;font-size:13px;font-weight:700}
+.correct{background:#bff2c8!important}.wrong{animation:shake .35s;background:#ffc2c2!important}
+@keyframes shake{25%{transform:translateX(-7px)}50%{transform:translateX(7px)}75%{transform:translateX(-4px)}}
+#msg{text-align:center;font-size:22px;font-weight:900;min-height:35px;padding:4px}
+@media(max-width:800px){.zones{grid-template-columns:1fr 1fr}.card{min-height:95px;font-size:15px}}
+</style>
+</head>
+<body>
+<header>
+<h1>🎯 لعبة إطار RCTF</h1>
+<div class="sub">صنّف البطاقات المختلطة: الدور R • السياق C • المهمة T • الصيغة F</div>
+</header>
+
+<div class="toolbar">
+<div class="pill">⭐ النقاط: <span id="score">0</span>/20</div>
+<div class="pill">⏱️ الوقت: <span id="time">03:00</span></div>
+<button onclick="shuffleCards()">🔀 خلط البطاقات</button>
+<button onclick="resetGame()">↻ إعادة اللعبة</button>
+</div>
+<div id="msg">اضغطي على البطاقة ثم على الحرف المناسب، أو اسحبيها إليه.</div>
+<div id="cards"></div>
+
+<div class="zones">
+<div class="zone" data-cat="R"><h2>R — Role</h2><small>الدور</small><div class="drop"></div></div>
+<div class="zone" data-cat="C"><h2>C — Context</h2><small>السياق</small><div class="drop"></div></div>
+<div class="zone" data-cat="T"><h2>T — Task</h2><small>المهمة</small><div class="drop"></div></div>
+<div class="zone" data-cat="F"><h2>F — Format</h2><small>الصيغة</small><div class="drop"></div></div>
+</div>
+
+<script>
+const data=[
+["📚","خبير مناهج","R"],["🎮","مصمم ألعاب تعليمية","R"],["👩‍🏫","معلم لغة إنجليزية خبير","R"],["📊","مصمم عروض تعليمية","R"],["💻","مستشار تكنولوجيا تعليمية","R"],
+["🏫","مدارس الكويت","C"],["👧","طالبات الصف التاسع","C"],["🌍","درس حول البيئة","C"],["🎧","درس مهارة الاستماع","C"],["📘","منهج اللغة الإنجليزية للمرحلة المتوسطة","C"],
+["📝","تصميم أسئلة تقويم","T"],["💡","تصميم نشاط افتتاحي","T"],["📄","تلخيص نص تعليمي","T"],["✏️","إعداد ورقة عمل","T"],["🔎","مراجعة المفردات للاختبار","T"],
+["▶️","فيديو Video","F"],["🖼️","صورة/ملصق Image","F"],["📽️","عرض PowerPoint","F"],["🌐","لعبة HTML تفاعلية","F"],["📄","Word خطة/جدول","F"]
+];
+let selected=null,score=0,total=180,timer;
+const cards=document.getElementById("cards"), msg=document.getElementById("msg");
+
+function render(){
+ cards.innerHTML="";
+ [...data].sort(()=>Math.random()-.5).forEach((x,i)=>{
+  let d=document.createElement("div"); d.className="card c"+(1+i%5); d.dataset.cat=x[2];
+  d.innerHTML=`<span class="ico">${x[0]}</span><span>${x[1]}</span>`;
+  d.draggable=true;
+  d.onclick=()=>selectCard(d);
+  d.ondragstart=e=>{selected=d;e.dataTransfer.setData("text/plain","x")};
+  cards.appendChild(d);
+ });
+}
+function selectCard(d){
+ document.querySelectorAll(".card").forEach(x=>x.classList.remove("selected"));
+ selected=d; d.classList.add("selected"); msg.textContent="اختاري الآن R أو C أو T أو F";
+}
+document.querySelectorAll(".zone").forEach(z=>{
+ z.onclick=e=>{if(selected) place(z)};
+ z.ondragover=e=>e.preventDefault();
+ z.ondrop=e=>{e.preventDefault();if(selected)place(z)};
+});
+function place(z){
+ if(selected.dataset.cat===z.dataset.cat){
+   score++; document.getElementById("score").textContent=score;
+   const m=document.createElement("span");m.className="mini correct";m.innerHTML=selected.innerHTML;
+   z.querySelector(".drop").appendChild(m); selected.remove(); selected=null;
+   msg.textContent= score===data.length ? "🏆 ممتاز! تم تصنيف جميع البطاقات بشكل صحيح!" : "✅ إجابة صحيحة!";
+   if(score===data.length){clearInterval(timer);confetti()}
+ }else{
+   selected.classList.add("wrong"); msg.textContent="❌ ليست هنا… فكري في معنى العنصر وحاولي مرة أخرى!";
+   setTimeout(()=>selected&&selected.classList.remove("wrong"),450);
+ }
+}
+function shuffleCards(){[...cards.children].sort(()=>Math.random()-.5).forEach(x=>cards.appendChild(x));}
+function resetGame(){
+ clearInterval(timer);score=0;total=180;document.getElementById("score").textContent=0;
+ document.querySelectorAll(".drop").forEach(x=>x.innerHTML="");render();startTimer();msg.textContent="تم خلط البطاقات! ابدئي التحدي 🎯";
+}
+function startTimer(){
+ timer=setInterval(()=>{total--;let m=Math.floor(total/60),s=total%60;
+ document.getElementById("time").textContent=`${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+ if(total<=0){clearInterval(timer);msg.textContent="⏰ انتهى الوقت! اضغطي إعادة اللعبة للمحاولة من جديد."}},1000)
+}
+function confetti(){for(let i=0;i<45;i++){let x=document.createElement("i");x.textContent=["⭐","🎉","✨","💖"][i%4];x.style.cssText=`position:fixed;left:${Math.random()*100}vw;top:-30px;font-size:25px;z-index:99;transition:top 2s,transform 2s`;document.body.appendChild(x);setTimeout(()=>{x.style.top="105vh";x.style.transform=`rotate(${Math.random()*800}deg)`},20);setTimeout(()=>x.remove(),2200)}}
+render();startTimer();
+</script>
+</body>
+</html>
